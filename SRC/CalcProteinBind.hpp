@@ -1,13 +1,13 @@
 /**
  * @file CalcProteinBind.hpp
- * @author Wen Yan (wenyan4work@gmail.com) and Adam Lamson
+ * @author Wen Yan (wenyan4work@gmail.com) and Adam Lamson, and Saad Ansari
  * @brief
  * @version 0.1
  * @date 2019-01-04
  *
  * @copyright Copyright (c) 2019
  *
- */
+ */ 
 
 #ifndef CALCPROTEINBIND_HPP_
 #define CALCPROTEINBIND_HPP_
@@ -67,6 +67,90 @@ class CalcProteinBind {
             if (srcPtr[s].srcFlag)
                 srcPtrArr.push_back(&(srcPtr[s].epSrc));
         }
+
+        // ************* BEGIN <09-21-21, SA> **************
+        // Check if saturation is true/false
+        // Saturation vartiable is present in the targets.
+        // Check if atleast one target is present. If not, then saturation is naturally off
+        bool saturate = false;
+        if (nTrg > 0) {
+            saturate = trgPtr[0].epTrg.property.saturation;
+        }
+        //std::cout << "Saturation: " << saturate << std::endl;
+        
+        int nSrcBind = srcPtrArr.size(); // Number of sources that can bind to targets
+        std::vector<double> saturationScaling(nSrcBind,1.0); // init scaling to 1  (saturation off)
+        
+        // Compute saturation prefactor scaling if:
+        // 1. saturation is ON, and
+        // 2. There are prospective binding sources
+        if (saturate && (nSrcBind > 0)) {
+        
+            // Find interaction gid, length of each source
+            std::vector<int> gidInteraction( nSrcBind, -1);
+            std::vector<double> sylLength( nSrcBind, -1);
+            for (int t = 0; t < nSrcBind; t++) {
+                gidInteraction[t] = srcPtrArr[t]->gid;
+                sylLength[t] = srcPtrArr[t]->length;
+        
+                if (sylLength[t] <= 0) {
+                    spdlog::error(
+                        "Sylinder Length {} of sylinder gid {} "
+                        "was less than 0",
+                        sylLength[t], gidInteraction[t]);
+                }
+            }   
+        
+            // Find unique sources
+            std::set<int> setGid;
+            unsigned sizeGidInteract = gidInteraction.size();
+            for( unsigned i = 0; i < sizeGidInteract; ++i ) setGid.insert( gidInteraction[i] );
+            gidInteraction.assign( setGid.begin(), setGid.end() );
+            int nGid = gidInteraction.size();
+          
+            // Find which entry of gidInteraction corresponds to each GID
+            std::vector<int> whichGid( 1+gidInteraction[gidInteraction.size()-1], -1);
+            for (int i = 0; i < nGid; i++) {
+                whichGid[ gidInteraction[i] ] = i;
+            }
+            // Find heads bound for each unique source
+            std::vector<int> nHeadBound(nGid, 0);
+            for (int t = 0; t < nTrg; t++) {
+                auto &trg = trgPtr[t];
+                // skip over targets that shoudnt be considered
+                if (!trg.trgFlag) {
+                    continue;
+                }
+           
+                // Protein Data and Bind Status
+                auto pData = trg.epTrg;
+                auto &bindStatus = pData.bind;
+               
+                // What objects are targets bound to?
+                auto end0 = bindStatus.idBind[0];
+                auto end1 = bindStatus.idBind[1];
+                
+                // If targets are bound (i.e not -1), then increment the bound Count.
+                if (end0 != -1) {
+                    nHeadBound[ whichGid[end0]]+=1;
+                }
+                if (end1 != -1) {
+                    nHeadBound[ whichGid[end1]]+=1;
+                }
+            }
+            // Get saturation scaling factors
+            auto &trg = trgPtr[0];
+            auto &pData = trg.epTrg;
+            // for each tubuleBind, find the gid, then find the scaling factor associated with that gid
+            for (int t = 0; t < nSrcBind; t++) {
+                int index = whichGid[ srcPtrArr[t]->gid];
+                double lenBound = nHeadBound[index]*pData.property.occupancy_size;
+                if (lenBound > sylLength[t]) {
+                    saturationScaling[t] = 0.001;
+                }
+            }
+        }
+        // ************* END <09-21-21, SA> **************
 
         for (int t = 0; t < nTrg; t++) {
             auto &trg = trgPtr[t];
@@ -143,7 +227,7 @@ class CalcProteinBind {
                 // or
                 // Unbound protein -> Unbound protein
                 roll[0] = rngPoolPtr->getU01(threadID);
-                KMC_U(pData, srcPtrArr, dt, roll[0], bindStatusResult);
+                KMC_U(pData, srcPtrArr, dt, roll[0], bindStatusResult, saturationScaling);
                 break;
             case 1:
                 // 1 head bound protein -> Unbound protein
@@ -154,7 +238,7 @@ class CalcProteinBind {
                 for (int i = 0; i < 3; ++i) {
                     roll[i] = rngPoolPtr->getU01(threadID);
                 }
-                KMC_S(pData, srcPtrArr, dt, KBT, roll, bindStatusResult);
+                KMC_S(pData, srcPtrArr, dt, KBT, roll, bindStatusResult, saturationScaling);
                 break;
             case 2:
                 // 2 head bound protein -> 1 head bound protein

@@ -33,7 +33,7 @@
  */
 template <class Tubule>
 void KMC_U(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
-           double dt, double roll, ProteinBindStatus &pBind) {
+           double dt, double roll, ProteinBindStatus &pBind, const std::vector<double> &saturationScaling) {
     // Assert the heads are not attached
     assert(pData.getBindID(0) == ID_UB && pData.getBindID(1) == ID_UB);
 
@@ -59,6 +59,14 @@ void KMC_U(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
 
     std::vector<double> bindFactors0(Nsy + Nsph, pData.getBindingFactorUS(0));
     std::vector<double> bindFactors1(Nsy + Nsph, pData.getBindingFactorUS(1));
+
+    // ********* BEGIN <09-21-2021, SA> **********                                                                                                                                                               
+    // Apply saturation scaling to pre factors
+    for (int t = 0; t < Nsy; t++) {
+        bindFactors0[t] *= saturationScaling[t];
+        bindFactors1[t] *= saturationScaling[t];
+    }   
+    // ********* END <09-21-2021, SA> **********                                                                                                                                                               
 
     // Loop over object to bind to and calculate binding probabilities
     kmc_end0.CalcTotProbsUS(syPtrArr, sphPtrArr, bindFactors0);
@@ -114,7 +122,7 @@ void KMC_U(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
  */
 template <class Tubule>
 void KMC_S(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
-           double dt, double KBT, double rollVec[3], ProteinBindStatus &pBind) {
+           double dt, double KBT, double rollVec[3], ProteinBindStatus &pBind, const std::vector<double> &saturationScaling) {
     int Npj = ep_j.size();
     double roll = rollVec[0];
     // Find out which head is bound
@@ -136,6 +144,9 @@ void KMC_S(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
 
         bindFactors[i] =
             pData.getBindingFactorSD(1 - bound_end, ep_j[i]->direction);
+        // *************** BEGIN <09-21-2021, SA> *************
+        bindFactors[i] *= saturationScaling[i]; // Scale via saturation factor
+        // *************** END <09-21-2021, SA> *************
     }
 
     unsigned int Nsy = syPtrArr.size();
