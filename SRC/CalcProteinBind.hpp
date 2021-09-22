@@ -84,7 +84,7 @@ class CalcProteinBind {
         // Compute saturation prefactor scaling if:
         // 1. saturation is ON, and
         // 2. There are prospective binding sources
-        if (saturate && (nSrcBind > 0)) {
+        if ((saturate == true) && (nSrcBind > 0)) {
         
             // Find interaction gid, length of each source
             std::vector<int> gidInteraction( nSrcBind, -1);
