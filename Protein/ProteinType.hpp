@@ -70,6 +70,13 @@ struct ProteinType {
     int lookupType = 0;
     int lookupGrid = 256;
 
+    // ************ BEGIN <09-21-2021, SA> **********
+    // Crosslinker saturation
+    bool saturation = false;
+    //< Occupancy size (in micron how much does a head take up)
+    double occupancy_size = 0;
+    // ************ END <09-21-2021, SA> **********
+
     // kMC lookup table
     LookupTable *LUTablePtr = nullptr; ///< Pointer to lookup table for binding
 
@@ -96,6 +103,15 @@ struct ProteinType {
         readConfig(p, VARNAME(diffUnbound), diffUnbound, "");
         readConfig(p, VARNAME(rc), rc, "");
         readConfig(p, VARNAME(eps), eps, "");
+
+        // ************* BEGIN <09-21-2021, SA> *************
+        // occupancy_size is optional in yaml file. Default is 0, so saturation is off
+        occupancy_size = 0.;
+        readConfig(p, VARNAME(occupancy_size), occupancy_size, "", true); // optional
+        if (occupancy_size > 0.) { // Turn on saturation if occupancy_size provided
+            saturation = true;
+        }
+        // ************* END <09-21-2021, SA> *************
 
         // array[2]
         readConfig(p, VARNAME(vmax), vmax, 2, "");
@@ -165,6 +181,10 @@ struct ProteinType {
         if (lookupType)
             printf("WARNING: Current LUT method for lookupType=1 gives large "
                    "errors due to sbound. Do not use this for now\n");
+        // ********** BEGIN <09-21-2021, SA> ***********
+        printf("saturation: %d\n", saturation);
+        printf("occupancy_size: %g um\n", occupancy_size);
+        // ********** END <09-21-2021, SA> ***********
         printf("----------------------------------\n");
     }
 
