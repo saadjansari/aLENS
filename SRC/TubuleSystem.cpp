@@ -185,6 +185,7 @@ void TubuleSystem::step() {
             TimeMonitor mon(*updateProteinMotionTimer);
             updateBindWithGid();
             updateProteinMotion();
+            countNumberOfBoundProteins(); // *** <09-21-2021, SA> ***
             proteinContainer.adjustPositionIntoRootDomain(
                 rodSystem.getDomainInfo());
             spdlog::debug("updateProteinMotion");
@@ -643,6 +644,56 @@ void TubuleSystem::setLookupTablePtr() {
         protein.property.LUTablePtr = &(LUTArr[index->second]);
     }
 }
+
+// ************* BEGIN <09-22-2021, SA> ***********
+void TubuleSystem::countNumberOfBoundProteins() {
+    // count number of bound proteins
+
+    const int nProteinLocal = proteinContainer.getNumberOfParticleLocal();
+    auto &tubuleContainer = rodSystem.getContainer();
+    const int nTubuleLocal = tubuleContainer.getNumberOfParticleLocal();
+    if (nTubuleLocal == 0) {
+        spdlog::error("nTubuleLocal = 0");
+    }
+
+    // vector of tubule gid
+    //std::vector<int> tubuleGid(nTubuleLocal,-1);
+    std::vector<int> tubuleGid;
+    for (int t = 0; t < nTubuleLocal; t++) {
+        //tubuleGid[t] = tubuleContainer[t].gid;
+        tubuleGid.push_back (tubuleContainer[t].gid);
+    }
+
+    // vector of gid indices in tubuleGid
+    std::vector<int> indexInTubuleGid( 1 + tubuleGid[tubuleGid.size()-1], -1);
+    for (int t = 0; t < nTubuleLocal; t++) {
+        indexInTubuleGid[ tubuleGid[t] ] = t;
+    }
+
+    // loop over proteins and count number of heads bound for each tubule
+    std::vector<int> nHeadBound(nTubuleLocal, 0);
+    for (int t = 0; t < nProteinLocal; t++) {
+        auto &protein = proteinContainer[t];
+        int idBound0 = protein.bind.idBind[0];
+        int idBound1 = protein.bind.idBind[1];
+
+        if (idBound0 != -1) {
+            nHeadBound[ indexInTubuleGid[idBound0]]+=1;
+        }
+        if (idBound1 != -1) {
+            nHeadBound[ indexInTubuleGid[idBound1]]+=1;
+        }
+    }
+
+    // Update tubule num bound property
+    auto &tubuleContainerNonConst = rodSystem.getContainerNonConst();
+    for (int t = 0; t < nTubuleLocal; t++) {
+        int n_bound = nHeadBound[ indexInTubuleGid[ tubuleGid[t] ] ];
+        auto &tubule = tubuleContainerNonConst[t];
+        tubule.setNumObjBound( n_bound);
+    }
+}
+// ************* END <09-22-2021, SA> ***********
 
 void TubuleSystem::findTubuleRankWithGid() {
     // using ZDD to find distributed data

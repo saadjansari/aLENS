@@ -152,6 +152,14 @@ class TubuleSystem {
      */
     void updateBindWithGid(bool reconstruct = false);
 
+    // ************* BEGIN <09-22-2021, SA> ***********
+    /**
+     * @brief count number of bound proteins for every tubule
+     *
+     */
+    void countNumberOfBoundProteins();
+    // ************* END <09-22-2021, SA> ***********
+
     /**
      * @brief find home rank of each tubule by gid
      *
