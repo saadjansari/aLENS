@@ -78,21 +78,25 @@ class CalcProteinBind {
         }
         
         int nSrcBind = srcPtrArr.size(); // Number of sources that can bind to targets
-        std::vector<double> saturationScaling(nSrcBind,1.0); // init scaling to 1  (saturation off)
+        std::vector<double> occupancyEnergy(nSrcBind, 0.0); // init energy to 0 (saturation off)
+        double occ_size = 0.; // occupancy_size
+        for (int t = 0; t < nTrg; t++) {
+            auto &trg = trgPtr[t];
+            if (trg.trgFlag) {
+                occ_size = trgPtr[t].epTrg.property.occupancy_size;
+                break;
+            }
+        }
         
-        // Compute saturation prefactor scaling if:
+        // Compute occupancy energy prefactor if:
         // 1. saturation is ON, and
         // 2. There are prospective binding sources
         if ((saturate == true) && (nSrcBind > 0)) {
-            auto &trg = trgPtr[0];
-            auto &pData = trg.epTrg;
+            double U0 = 1; // units of KBT
             for (int t = 0; t < nSrcBind; t++) {
-                double len_syl = srcPtrArr[t]->length;
+                double n_allowed = srcPtrArr[t]->length / occ_size;
                 int n_bound = srcPtrArr[t]->numObjBound;
-                double lenBound = n_bound*pData.property.occupancy_size;
-                if (lenBound > len_syl) {
-                    saturationScaling[t] = 0.0001;
-                }
+                occupancyEnergy[t] = U0 * (n_bound/n_allowed);
             }
         }
         // ************* END <09-21-21, SA> **************
@@ -172,7 +176,7 @@ class CalcProteinBind {
                 // or
                 // Unbound protein -> Unbound protein
                 roll[0] = rngPoolPtr->getU01(threadID);
-                KMC_U(pData, srcPtrArr, dt, roll[0], bindStatusResult, saturationScaling);
+                KMC_U(pData, srcPtrArr, dt, roll[0], bindStatusResult, occupancyEnergy);
                 break;
             case 1:
                 // 1 head bound protein -> Unbound protein
@@ -183,14 +187,14 @@ class CalcProteinBind {
                 for (int i = 0; i < 3; ++i) {
                     roll[i] = rngPoolPtr->getU01(threadID);
                 }
-                KMC_S(pData, srcPtrArr, dt, KBT, roll, bindStatusResult, saturationScaling);
+                KMC_S(pData, srcPtrArr, dt, KBT, roll, bindStatusResult, occupancyEnergy);
                 break;
             case 2:
                 // 2 head bound protein -> 1 head bound protein
                 // or
                 // 2 head bound protein -> 2 head bound protein
                 roll[0] = rngPoolPtr->getU01(threadID);
-                KMC_D(pData, srcPtrArr, dt, KBT, roll[0], bindStatusResult);
+                KMC_D(pData, srcPtrArr, dt, KBT, roll[0], bindStatusResult, occupancyEnergy);
                 break;
             default:
                 spdlog::critical(
