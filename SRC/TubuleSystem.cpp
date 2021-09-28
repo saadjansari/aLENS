@@ -185,7 +185,6 @@ void TubuleSystem::step() {
             TimeMonitor mon(*updateProteinMotionTimer);
             updateBindWithGid();
             updateProteinMotion();
-            countNumberOfBoundProteins(); // *** <09-21-2021, SA> ***
             proteinContainer.adjustPositionIntoRootDomain(
                 rodSystem.getDomainInfo());
             spdlog::debug("updateProteinMotion");
@@ -237,9 +236,15 @@ void TubuleSystem::calcBindInteraction() {
     bindInteraction.updateTree();
     spdlog::debug("mixTreeUpdated");
     // bindInteraction.dumpSystem();
-
+    // ********** BEGIN <09-27-2021, SA> **********
+    std::unordered_map<int,double> occEnergyMap = calcOccupancyEnergyMap();
+    std::unordered_map<int,double>* ptr2Map = &occEnergyMap;
     CalcProteinBind interactionFtr(rodSystem.runConfig.dt, proteinConfig.KBT,
-                                   rngPoolPtr);
+                                   rngPoolPtr, proteinConfig.types[0].saturation, ptr2Map);
+    // ********** END <09-27-2021, SA> **********
+
+    //CalcProteinBind interactionFtr(rodSystem.runConfig.dt, proteinConfig.KBT,
+                                   //rngPoolPtr);
     bindInteraction.computeForce(interactionFtr, dinfo);
     spdlog::debug("forceComputed");
 
@@ -646,21 +651,14 @@ void TubuleSystem::setLookupTablePtr() {
 }
 
 // ************* BEGIN <09-22-2021, SA> ***********
-void TubuleSystem::countNumberOfBoundProteins() {
-    // count number of bound proteins
-
+std::unordered_map<int,double> TubuleSystem::calcOccupancyEnergyMap() {
     const int nProteinLocal = proteinContainer.getNumberOfParticleLocal();
     auto &tubuleContainer = rodSystem.getContainer();
     const int nTubuleLocal = tubuleContainer.getNumberOfParticleLocal();
-    if (nTubuleLocal == 0) {
-        spdlog::error("nTubuleLocal = 0");
-    }
 
     // vector of tubule gid
-    //std::vector<int> tubuleGid(nTubuleLocal,-1);
     std::vector<int> tubuleGid;
     for (int t = 0; t < nTubuleLocal; t++) {
-        //tubuleGid[t] = tubuleContainer[t].gid;
         tubuleGid.push_back (tubuleContainer[t].gid);
     }
 
@@ -670,28 +668,31 @@ void TubuleSystem::countNumberOfBoundProteins() {
         indexInTubuleGid[ tubuleGid[t] ] = t;
     }
 
-    // loop over proteins and count number of heads bound for each tubule
-    std::vector<int> nHeadBound(nTubuleLocal, 0);
+    // loop over proteins and count length of binding sites occupied (and energy) each tubule
+    std::vector<double> occLength(nTubuleLocal, 0);
+#pragma omp parallel for
     for (int t = 0; t < nProteinLocal; t++) {
         auto &protein = proteinContainer[t];
         int idBound0 = protein.bind.idBind[0];
         int idBound1 = protein.bind.idBind[1];
 
         if (idBound0 != -1) {
-            nHeadBound[ indexInTubuleGid[idBound0]]+=1;
+            occLength[ indexInTubuleGid[idBound0]] += protein.property.occupancy_size;
         }
         if (idBound1 != -1) {
-            nHeadBound[ indexInTubuleGid[idBound1]]+=1;
+            occLength[ indexInTubuleGid[idBound1]] += protein.property.occupancy_size;
         }
     }
 
-    // Update tubule num bound property
-    auto &tubuleContainerNonConst = rodSystem.getContainerNonConst();
+    // Create map (key: tubule gid, value occupancy_energy)
+    double U0 = 1; // units of KBT
+    std::unordered_map<int,double> occEnergy;
+    occEnergy.reserve(1+nTubuleLocal); 
     for (int t = 0; t < nTubuleLocal; t++) {
-        int n_bound = nHeadBound[ indexInTubuleGid[ tubuleGid[t] ] ];
-        auto &tubule = tubuleContainerNonConst[t];
-        tubule.setNumObjBound( n_bound);
+        occEnergy[ tubuleGid[t] ] = occLength[t] / tubuleContainer[t].length;
     }
+    occEnergy[ ID_UB] = 0.; //zero energy for any unbound ends
+    return occEnergy;
 }
 // ************* END <09-22-2021, SA> ***********
 

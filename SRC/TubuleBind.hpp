@@ -30,9 +30,6 @@ struct TubuleBindEP {
 
     double pos[3];       ///< position
     double direction[3]; ///< direction (unit norm vector)
-    // ************ BEGIN <09-22-2021, SA>
-    int numObjBound = 0; ///< number of bound objects
-    // ************ END <09-22-2021, SA>
 
     /**
      * @brief Get gid
@@ -67,9 +64,6 @@ struct TubuleBindEP {
         direction[0] = q[0];
         direction[1] = q[1];
         direction[2] = q[2];
-        // ************ BEGIN <09-22-2021, SA>
-        numObjBound = fp.numObjBound;
-        // ************ END <09-22-2021, SA>
     }
 
     /**

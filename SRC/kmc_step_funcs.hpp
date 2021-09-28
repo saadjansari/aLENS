@@ -122,7 +122,9 @@ void KMC_U(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
  */
 template <class Tubule>
 void KMC_S(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
-           double dt, double KBT, double rollVec[3], ProteinBindStatus &pBind, const std::vector<double> &occupancyEnergy) {
+           double dt, double KBT, double rollVec[3], ProteinBindStatus &pBind, 
+           const std::vector<double> &occupancyEnergy, 
+           double occupancyEnergySrcBoundEnd[2]) {
     int Npj = ep_j.size();
     double roll = rollVec[0];
     // Find out which head is bound
@@ -158,24 +160,8 @@ void KMC_S(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
                                  dt, pType->LUTablePtr);
 
     // *************** BEGIN <09-27-2021, SA> *************
-    //get gid of syRods
-    std::vector<int> gidAll(Nsy, -1);
-    for (int t=0; t<Nsy; t++) {
-        gidAll[t] = syPtrArr[t]->gid;
-    }
-    // get index of rod for bound_end
-    int index_bound = -1;
-    for (int t=0; t<Nsy; t++) {
-        if (pData.bind.idBind[bound_end] == syPtrArr[t]->gid) {
-            index_bound = t;
-        }
-    }
-    if (index_bound == -1) {
-        std::cerr << " *** RuntimeError: Cannot find tubule for bound end ***"
-                  << std::endl;
-        throw "RuntimeError: Tubule for bound_end missing";
-    }
-    kmc_unbind.CalcProbSU( exp(occupancyEnergy[index_bound])*pData.getUnbindingFactorSU(bound_end));
+    kmc_unbind.CalcProbSU( exp( occupancyEnergySrcBoundEnd[bound_end])*
+            pData.getUnbindingFactorSU(bound_end));
     // *************** END <09-27-2021, SA> *************
     //kmc_unbind.CalcProbSU(pData.getUnbindingFactorSU(bound_end));
     kmc_bind.LUCalcTotProbsSD(syPtrArr, sphPtrArr, pData.getBindID(bound_end),
@@ -243,51 +229,15 @@ void KMC_S(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
  */
 template <class Tubule>
 void KMC_D(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
-           double dt, double KBT, double roll, ProteinBindStatus &pBind, const std::vector<double> &occupancyEnergy) {
+           double dt, double KBT, double roll, ProteinBindStatus &pBind, 
+           double occupancyEnergySrcBoundEnd[2]) {
     KMC<Tubule> kmc_UB0(pData.bind.posEndBind[0], dt);
     KMC<Tubule> kmc_UB1(pData.bind.posEndBind[1], dt);
     // *************** BEGIN <09-27-2021, SA> *************
-    int Npj = ep_j.size();
-
-    // Create KMC objects for probability and step calculations
-    std::vector<const Tubule *> sphPtrArr; //Spheres
-    std::vector<const Tubule *> syPtrArr;  // Sylinders
-    sphPtrArr.reserve(ep_j.size());        //Set memory for speed
-    syPtrArr.reserve(ep_j.size());
-    for (int i = 0; i < Npj; ++i) {
-        ep_j[i]->isSphere() ? sphPtrArr.push_back(ep_j[i])
-                            : syPtrArr.push_back(ep_j[i]);
-    }
-    unsigned int Nsy = syPtrArr.size();
-    unsigned int Nsph = sphPtrArr.size();
-    //get gid of syRods
-    std::vector<int> gidAll(Nsy, -1);
-    for (int t=0; t<Nsy; t++) {
-        gidAll[t] = syPtrArr[t]->gid;
-    }
-    // get index of rod for each bound_end
-    int index_bound0 = -1;
-    int index_bound1 = -1;
-    for (int t=0; t<Nsy; t++) {
-        if (pData.bind.idBind[0] == syPtrArr[t]->gid) {
-            index_bound0 = t;
-        }
-        if (pData.bind.idBind[1] == syPtrArr[t]->gid) {
-            index_bound1 = t;
-        }
-    }
-    if (index_bound0 == -1) {
-        std::cerr << " *** RuntimeError: Cannot find tubule for bound end 0 ***"
-                  << std::endl;
-        throw "RuntimeError: Tubule for bound_end0 missing";
-    }
-    if (index_bound1 == -1) {
-        std::cerr << " *** RuntimeError: Cannot find tubule for bound end 1 ***"
-                  << std::endl;
-        throw "RuntimeError: Tubule for bound_end1 missing";
-    }
-    kmc_UB0.CalcProbDS( exp(occupancyEnergy[index_bound0])*pData.getUnbindingFactorDS(0, KBT));
-    kmc_UB1.CalcProbDS( exp(occupancyEnergy[index_bound1])*pData.getUnbindingFactorDS(1, KBT));
+    kmc_UB0.CalcProbDS( exp(occupancyEnergySrcBoundEnd[0])*
+            pData.getUnbindingFactorDS(0, KBT));
+    kmc_UB1.CalcProbDS( exp(occupancyEnergySrcBoundEnd[1])*
+            pData.getUnbindingFactorDS(1, KBT));
     // *************** END <09-27-2021, SA> *************
     //kmc_UB0.CalcProbDS(pData.getUnbindingFactorDS(0, KBT));
     //kmc_UB1.CalcProbDS(pData.getUnbindingFactorDS(1, KBT));

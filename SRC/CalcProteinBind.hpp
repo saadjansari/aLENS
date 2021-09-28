@@ -30,6 +30,10 @@ class CalcProteinBind {
     double dt;                            ///< timestep size
     double KBT;                           ///< KBT for protein KMC calculation
     std::shared_ptr<TRngPool> rngPoolPtr; ///< rng generator
+    // ******** BEGIN <09-27-2021, SA> *******
+    bool saturation = false;              ///< protein head saturation
+    std::unordered_map<int, double>* occEnergyPtr = NULL; //< ptr to occupancy energy
+    // ******** END <09-27-2021, SA> *******
 
   public:
     /**
@@ -45,6 +49,27 @@ class CalcProteinBind {
         KBT = KBT_;
         rngPoolPtr = rngPoolPtr_;
     }
+    // ******** BEGIN <09-27-2021, SA> *******
+    /**
+     * @brief Construct a new CalcProteinBind object
+     *
+     * @param dt_
+     * @param KBT_
+     * @param rngPoolPtr_
+     * @param saturation_
+     * @param occEnergyPtr_
+     */
+    CalcProteinBind(double dt_, double KBT_,
+                    std::shared_ptr<TRngPool> &rngPoolPtr_,
+                    bool saturation_,
+                    std::unordered_map<int,double>* occEnergyPtr_) {
+        dt = dt_;
+        KBT = KBT_;
+        rngPoolPtr = rngPoolPtr_;
+        saturation = saturation_;
+        occEnergyPtr = occEnergyPtr_;
+    }
+    // ******** END <09-27-2021, SA> *******
 
     /**
      * @brief Functor interface required by MixPairInteraction
@@ -69,34 +94,19 @@ class CalcProteinBind {
         }
 
         // ************* BEGIN <09-21-21, SA> **************
-        // Check if saturation is true/false
-        // Saturation vartiable is present in the targets.
-        // Check if atleast one target is present. If not, then saturation is naturally off
-        bool saturate = false;
-        if (nTrg > 0) {
-            saturate = trgPtr[0].epTrg.property.saturation;
-        }
-        
         int nSrcBind = srcPtrArr.size(); // Number of sources that can bind to targets
         std::vector<double> occupancyEnergy(nSrcBind, 0.0); // init energy to 0 (saturation off)
-        double occ_size = 0.; // occupancy_size
-        for (int t = 0; t < nTrg; t++) {
-            auto &trg = trgPtr[t];
-            if (trg.trgFlag) {
-                occ_size = trgPtr[t].epTrg.property.occupancy_size;
-                break;
+        if (saturation == true) {
+            if (occEnergyPtr == NULL) {
+                std::cerr << " *** RuntimeError: Saturation is true but occupancy energy ptr is NULL***"
+                          << std::endl;
+                throw "RuntimeError: OccEnergyPtr is required but is NULL";
             }
-        }
-        
-        // Compute occupancy energy prefactor if:
-        // 1. saturation is ON, and
-        // 2. There are prospective binding sources
-        if ((saturate == true) && (nSrcBind > 0)) {
-            double U0 = 1; // units of KBT
+            if (nSrcBind == 0) {
+                std::cerr << " Note: nSrcBind = 0. There may be issues!" << std::endl;
+            }
             for (int t = 0; t < nSrcBind; t++) {
-                double n_allowed = srcPtrArr[t]->length / occ_size;
-                int n_bound = srcPtrArr[t]->numObjBound;
-                occupancyEnergy[t] = U0 * (n_bound/n_allowed);
+                occupancyEnergy[t]= (*occEnergyPtr)[ srcPtrArr[t]->gid ];
             }
         }
         // ************* END <09-21-21, SA> **************
@@ -166,6 +176,14 @@ class CalcProteinBind {
                 stage = 1;
             else if (!(end1isUB && end2isUB))
                 stage = 2;
+            // ***** BEGIN <09-27-2021, SA> *****
+            // energy of source that is bound to protein end
+            double energySrcBoundEnd[2] = {0., 0.};
+            if (saturation == true) {
+                energySrcBoundEnd[0] = (*occEnergyPtr)[bindStatus.idBind[0]];
+                energySrcBoundEnd[1] = (*occEnergyPtr)[bindStatus.idBind[1]];
+            } 
+            // ***** END <09-27-2021, SA> *****
 
             assert(stage != -1); // A stage should always be found
             double roll[3] = {}; // rng to be setup
@@ -187,14 +205,14 @@ class CalcProteinBind {
                 for (int i = 0; i < 3; ++i) {
                     roll[i] = rngPoolPtr->getU01(threadID);
                 }
-                KMC_S(pData, srcPtrArr, dt, KBT, roll, bindStatusResult, occupancyEnergy);
+                KMC_S(pData, srcPtrArr, dt, KBT, roll, bindStatusResult, occupancyEnergy, energySrcBoundEnd);
                 break;
             case 2:
                 // 2 head bound protein -> 1 head bound protein
                 // or
                 // 2 head bound protein -> 2 head bound protein
                 roll[0] = rngPoolPtr->getU01(threadID);
-                KMC_D(pData, srcPtrArr, dt, KBT, roll[0], bindStatusResult, occupancyEnergy);
+                KMC_D(pData, srcPtrArr, dt, KBT, roll[0], bindStatusResult, energySrcBoundEnd);
                 break;
             default:
                 spdlog::critical(

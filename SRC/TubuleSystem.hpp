@@ -154,10 +154,10 @@ class TubuleSystem {
 
     // ************* BEGIN <09-22-2021, SA> ***********
     /**
-     * @brief count number of bound proteins for every tubule
+     * @brief calc occupancy energy for bound proteins for every tubule
      *
      */
-    void countNumberOfBoundProteins();
+    std::unordered_map<int,double> calcOccupancyEnergyMap();
     // ************* END <09-22-2021, SA> ***********
 
     /**
