@@ -31,7 +31,6 @@ class CalcProteinBind {
     double KBT;                           ///< KBT for protein KMC calculation
     std::shared_ptr<TRngPool> rngPoolPtr; ///< rng generator
     // ******** BEGIN <09-27-2021, SA> *******
-    bool saturation = false;              ///< protein head saturation
     std::unordered_map<int, double>* occEnergyPtr = NULL; //< ptr to occupancy energy
     // ******** END <09-27-2021, SA> *******
 
@@ -56,17 +55,14 @@ class CalcProteinBind {
      * @param dt_
      * @param KBT_
      * @param rngPoolPtr_
-     * @param saturation_
      * @param occEnergyPtr_
      */
     CalcProteinBind(double dt_, double KBT_,
                     std::shared_ptr<TRngPool> &rngPoolPtr_,
-                    bool saturation_,
                     std::unordered_map<int,double>* occEnergyPtr_) {
         dt = dt_;
         KBT = KBT_;
         rngPoolPtr = rngPoolPtr_;
-        saturation = saturation_;
         occEnergyPtr = occEnergyPtr_;
     }
     // ******** END <09-27-2021, SA> *******
@@ -96,18 +92,16 @@ class CalcProteinBind {
         // ************* BEGIN <09-21-21, SA> **************
         int nSrcBind = srcPtrArr.size(); // Number of sources that can bind to targets
         std::vector<double> occupancyEnergy(nSrcBind, 0.0); // init energy to 0 (saturation off)
-        if (saturation == true) {
-            if (occEnergyPtr == NULL) {
-                std::cerr << " *** RuntimeError: Saturation is true but occupancy energy ptr is NULL***"
-                          << std::endl;
-                throw "RuntimeError: OccEnergyPtr is required but is NULL";
-            }
-            if (nSrcBind == 0) {
-                std::cerr << " Note: nSrcBind = 0. There may be issues!" << std::endl;
-            }
-            for (int t = 0; t < nSrcBind; t++) {
-                occupancyEnergy[t]= (*occEnergyPtr)[ srcPtrArr[t]->gid ];
-            }
+        if (occEnergyPtr == NULL) {
+            std::cerr << " *** RuntimeError: Saturation is true but occupancy energy ptr is NULL***"
+                      << std::endl;
+            throw "RuntimeError: OccEnergyPtr is required but is NULL";
+        }
+        if (nSrcBind == 0) {
+            std::cerr << " Note: nSrcBind = 0. There may be issues!" << std::endl;
+        }
+        for (int t = 0; t < nSrcBind; t++) {
+            occupancyEnergy[t]= (*occEnergyPtr)[ srcPtrArr[t]->gid ];
         }
         // ************* END <09-21-21, SA> **************
 
@@ -179,7 +173,7 @@ class CalcProteinBind {
             // ***** BEGIN <09-27-2021, SA> *****
             // energy of source that is bound to protein end
             double energySrcBoundEnd[2] = {0., 0.};
-            if (saturation == true) {
+            if (stage == 2) {
                 energySrcBoundEnd[0] = (*occEnergyPtr)[bindStatus.idBind[0]];
                 energySrcBoundEnd[1] = (*occEnergyPtr)[bindStatus.idBind[1]];
             } 
@@ -194,7 +188,8 @@ class CalcProteinBind {
                 // or
                 // Unbound protein -> Unbound protein
                 roll[0] = rngPoolPtr->getU01(threadID);
-                KMC_U(pData, srcPtrArr, dt, roll[0], bindStatusResult, occupancyEnergy);
+                //KMC_U(pData, srcPtrArr, dt, roll[0], bindStatusResult, occupancyEnergy);
+                KMC_U(pData, srcPtrArr, dt, roll[0], bindStatusResult);
                 break;
             case 1:
                 // 1 head bound protein -> Unbound protein

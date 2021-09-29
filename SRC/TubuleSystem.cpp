@@ -240,7 +240,7 @@ void TubuleSystem::calcBindInteraction() {
     std::unordered_map<int,double> occEnergyMap = calcOccupancyEnergyMap();
     std::unordered_map<int,double>* ptr2Map = &occEnergyMap;
     CalcProteinBind interactionFtr(rodSystem.runConfig.dt, proteinConfig.KBT,
-                                   rngPoolPtr, proteinConfig.types[0].saturation, ptr2Map);
+                                   rngPoolPtr, ptr2Map);
     // ********** END <09-27-2021, SA> **********
 
     //CalcProteinBind interactionFtr(rodSystem.runConfig.dt, proteinConfig.KBT,
@@ -668,28 +668,31 @@ std::unordered_map<int,double> TubuleSystem::calcOccupancyEnergyMap() {
         indexInTubuleGid[ tubuleGid[t] ] = t;
     }
 
-    // loop over proteins and count length of binding sites occupied (and energy) each tubule
-    std::vector<double> occLength(nTubuleLocal, 0);
+    // loop over proteins and count length of binding sites occupied times energy for each tubule
+    std::vector<double> occLengthTimesEnergy(nTubuleLocal, 0);
 #pragma omp parallel for
     for (int t = 0; t < nProteinLocal; t++) {
         auto &protein = proteinContainer[t];
         int idBound0 = protein.bind.idBind[0];
         int idBound1 = protein.bind.idBind[1];
 
-        if (idBound0 != -1) {
-            occLength[ indexInTubuleGid[idBound0]] += protein.property.occupancy_size;
-        }
-        if (idBound1 != -1) {
-            occLength[ indexInTubuleGid[idBound1]] += protein.property.occupancy_size;
+        //if (idBound0 != ID_UB) {
+            //occLength[ indexInTubuleGid[idBound0]] += protein.property.occupancy_size;
+        //}
+        //if (idBound1 != ID_UB) {
+            //occLength[ indexInTubuleGid[idBound1]] += protein.property.occupancy_size;
+        //}
+        if ((idBound0 != ID_UB) && (idBound1 != ID_UB)) {
+            occLengthTimesEnergy[ indexInTubuleGid[idBound0]] += protein.property.Usteric*protein.property.occupancy_size;
+            occLengthTimesEnergy[ indexInTubuleGid[idBound1]] += protein.property.Usteric*protein.property.occupancy_size;
         }
     }
 
     // Create map (key: tubule gid, value occupancy_energy)
-    double U0 = 1; // units of KBT
     std::unordered_map<int,double> occEnergy;
     occEnergy.reserve(1+nTubuleLocal); 
     for (int t = 0; t < nTubuleLocal; t++) {
-        occEnergy[ tubuleGid[t] ] = occLength[t] / tubuleContainer[t].length;
+        occEnergy[ tubuleGid[t] ] = occLengthTimesEnergy[t] / tubuleContainer[t].length;
     }
     occEnergy[ ID_UB] = 0.; //zero energy for any unbound ends
     return occEnergy;

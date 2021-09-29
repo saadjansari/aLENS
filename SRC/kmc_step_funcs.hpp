@@ -33,7 +33,7 @@
  */
 template <class Tubule>
 void KMC_U(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
-           double dt, double roll, ProteinBindStatus &pBind, const std::vector<double> &occupancyEnergy) {
+           double dt, double roll, ProteinBindStatus &pBind) {
     // Assert the heads are not attached
     assert(pData.getBindID(0) == ID_UB && pData.getBindID(1) == ID_UB);
 
@@ -59,14 +59,6 @@ void KMC_U(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
 
     std::vector<double> bindFactors0(Nsy + Nsph, pData.getBindingFactorUS(0));
     std::vector<double> bindFactors1(Nsy + Nsph, pData.getBindingFactorUS(1));
-
-    // ********* BEGIN <09-21-2021, SA> **********                                                                                                                                                               
-    // Apply saturation scaling to pre factors
-    for (int t = 0; t < Nsy; t++) {
-        bindFactors0[t] *= exp( -occupancyEnergy[t]);
-        bindFactors1[t] *= exp( -occupancyEnergy[t]);
-    }   
-    // ********* END <09-21-2021, SA> **********                                                                                                                                                               
 
     // Loop over object to bind to and calculate binding probabilities
     kmc_end0.CalcTotProbsUS(syPtrArr, sphPtrArr, bindFactors0);
