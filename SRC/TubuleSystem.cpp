@@ -238,9 +238,18 @@ void TubuleSystem::calcBindInteraction() {
     // bindInteraction.dumpSystem();
     // ********** BEGIN <09-27-2021, SA> **********
     std::unordered_map<int,double> occEnergyMap = calcOccupancyEnergyMap();
-    std::unordered_map<int,double>* ptr2Map = &occEnergyMap;
+    std::unordered_map<int,double>* ptr2EMap = &occEnergyMap;
+    
+    auto &tubuleContainer = rodSystem.getContainer();
+    const int nTubuleLocal = tubuleContainer.getNumberOfParticleLocal();
+    std::unordered_map<int,double> lengthMap;
+    lengthMap.reserve( nTubuleLocal);
+    for (int t = 0; t < nTubuleLocal; t++) {
+        lengthMap[ tubuleContainer[t].gid] = tubuleContainer[t].length;
+    }
+    std::unordered_map<int,double>* ptr2LMap = &lengthMap;
     CalcProteinBind interactionFtr(rodSystem.runConfig.dt, proteinConfig.KBT,
-                                   rngPoolPtr, ptr2Map);
+                                   rngPoolPtr, ptr2EMap, ptr2LMap);
     // ********** END <09-27-2021, SA> **********
 
     //CalcProteinBind interactionFtr(rodSystem.runConfig.dt, proteinConfig.KBT,

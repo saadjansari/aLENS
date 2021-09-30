@@ -32,6 +32,7 @@ class CalcProteinBind {
     std::shared_ptr<TRngPool> rngPoolPtr; ///< rng generator
     // ******** BEGIN <09-27-2021, SA> *******
     std::unordered_map<int, double>* occEnergyPtr = NULL; //< ptr to occupancy energy
+    std::unordered_map<int, double>* lengthPtr = NULL; //< ptr to occupancy energy
     // ******** END <09-27-2021, SA> *******
 
   public:
@@ -56,14 +57,17 @@ class CalcProteinBind {
      * @param KBT_
      * @param rngPoolPtr_
      * @param occEnergyPtr_
+     * @param lengthPtr_ 
      */
     CalcProteinBind(double dt_, double KBT_,
                     std::shared_ptr<TRngPool> &rngPoolPtr_,
-                    std::unordered_map<int,double>* occEnergyPtr_) {
+                    std::unordered_map<int,double>* occEnergyPtr_,
+                    std::unordered_map<int,double>* lengthPtr_) {
         dt = dt_;
         KBT = KBT_;
         rngPoolPtr = rngPoolPtr_;
         occEnergyPtr = occEnergyPtr_;
+        lengthPtr = lengthPtr_;
     }
     // ******** END <09-27-2021, SA> *******
 
@@ -100,8 +104,11 @@ class CalcProteinBind {
         if (nSrcBind == 0) {
             std::cerr << " Note: nSrcBind = 0. There may be issues!" << std::endl;
         }
+
+        //Create map about where each gid is in srcPtrArr
+        std::unordered_map<int, std::vector<int>> whereInSrc; //< ptr to occupancy energy
         for (int t = 0; t < nSrcBind; t++) {
-            occupancyEnergy[t]= (*occEnergyPtr)[ srcPtrArr[t]->gid ];
+            whereInSrc[ srcPtrArr[t]->gid].push_back(t);
         }
         // ************* END <09-21-21, SA> **************
 
@@ -171,6 +178,9 @@ class CalcProteinBind {
             else if (!(end1isUB && end2isUB))
                 stage = 2;
             // ***** BEGIN <09-27-2021, SA> *****
+            for (int t = 0; t < nSrcBind; t++) {
+                occupancyEnergy[t]= (*occEnergyPtr)[ srcPtrArr[t]->gid ];
+            }
             // energy of source that is bound to protein end
             double energySrcBoundEnd[2] = {0., 0.};
             if (stage == 2) {
@@ -190,6 +200,7 @@ class CalcProteinBind {
                 roll[0] = rngPoolPtr->getU01(threadID);
                 //KMC_U(pData, srcPtrArr, dt, roll[0], bindStatusResult, occupancyEnergy);
                 KMC_U(pData, srcPtrArr, dt, roll[0], bindStatusResult);
+                updateOccupancyEnergy(pData, bindStatusResult.idBind, occEnergyPtr, lengthPtr, srcPtrArr);
                 break;
             case 1:
                 // 1 head bound protein -> Unbound protein
@@ -201,6 +212,7 @@ class CalcProteinBind {
                     roll[i] = rngPoolPtr->getU01(threadID);
                 }
                 KMC_S(pData, srcPtrArr, dt, KBT, roll, bindStatusResult, occupancyEnergy, energySrcBoundEnd);
+                updateOccupancyEnergy(pData, bindStatusResult.idBind, occEnergyPtr, lengthPtr, srcPtrArr);
                 break;
             case 2:
                 // 2 head bound protein -> 1 head bound protein
@@ -208,12 +220,61 @@ class CalcProteinBind {
                 // 2 head bound protein -> 2 head bound protein
                 roll[0] = rngPoolPtr->getU01(threadID);
                 KMC_D(pData, srcPtrArr, dt, KBT, roll[0], bindStatusResult, energySrcBoundEnd);
+                updateOccupancyEnergy(pData, bindStatusResult.idBind, occEnergyPtr, lengthPtr, srcPtrArr);
                 break;
             default:
                 spdlog::critical(
                     " Could not execute correct stage in CalcProteinBind.");
                 exit(1);
             }
+        }
+    }
+
+    template <class Tubule>
+    void updateOccupancyEnergy(const ProteinData &pData, 
+            const int idBind[2], 
+            std::unordered_map<int,double>* occEnergyPtr,
+            std::unordered_map<int,double>* lengthPtr,
+            const std::vector<const Tubule *> &srcPtrArr) {
+        //Figure out which additional proteins have been bounded
+         //status: 0=nothing changed, 1/2= end1/end2 bounded, -1/-2: end1/end2 unbounded,
+        int status = 0;
+        if ( (pData.bind.idBind[0] == ID_UB) && (idBind[0] != ID_UB)) {
+            status = 1; // end1 bound to something
+        } 
+        if ( (pData.bind.idBind[0] != ID_UB) && (idBind[0] == ID_UB)) {
+            status = -1; // end1 unbind from something
+        } 
+        if ( (pData.bind.idBind[1] == ID_UB) && (idBind[1] != ID_UB)) {
+            status = 2; // end2 bound to something
+        } 
+        if ( (pData.bind.idBind[1] != ID_UB) && (idBind[1] == ID_UB)) {
+            status = -2; // end2 unbind from something
+        } 
+        std::cout << "Update Occupancy Energy status = " << status << std::endl;
+
+        double Uold = 0;
+        switch (status) {
+        case 1:
+            Uold = (*occEnergyPtr)[idBind[0]];
+            (*occEnergyPtr)[idBind[0]] += (pData.property.Usteric * pData.property.occupancy_size) / (*lengthPtr)[idBind[0]];
+            std::cout << "Occupancy Energy : " << Uold << " ---> " << (*occEnergyPtr)[idBind[0]] << std::endl;
+            break;
+        case 2:
+            Uold = (*occEnergyPtr)[idBind[1]];
+            (*occEnergyPtr)[idBind[1]] += (pData.property.Usteric * pData.property.occupancy_size) / (*lengthPtr)[idBind[1]];
+            std::cout << "Occupancy Energy : " << Uold << " ---> " << (*occEnergyPtr)[idBind[1]] << std::endl;
+            break;
+        case -1:
+            Uold = (*occEnergyPtr)[pData.bind.idBind[0]];
+            (*occEnergyPtr)[pData.bind.idBind[0]] -= (pData.property.Usteric * pData.property.occupancy_size) / (*lengthPtr)[pData.bind.idBind[0]];
+            std::cout << "Occupancy Energy : " << Uold << " ---> " << (*occEnergyPtr)[pData.bind.idBind[0]] << std::endl;
+            break;
+        case -2:
+            Uold = (*occEnergyPtr)[pData.bind.idBind[1]];
+            (*occEnergyPtr)[pData.bind.idBind[1]] -= (pData.property.Usteric * pData.property.occupancy_size) / (*lengthPtr)[pData.bind.idBind[1]];
+            std::cout << "Occupancy Energy : " << Uold << " ---> " << (*occEnergyPtr)[pData.bind.idBind[1]] << std::endl;
+            break;
         }
     }
 };
