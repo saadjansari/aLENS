@@ -170,14 +170,6 @@ class CalcProteinBind {
                 stage = 1;
             else if (!(end1isUB && end2isUB))
                 stage = 2;
-            // ***** BEGIN <09-27-2021, SA> *****
-            // energy of source that is bound to protein end
-            double energySrcBoundEnd[2] = {0., 0.};
-            if (stage == 2) {
-                energySrcBoundEnd[0] = (*occEnergyPtr)[bindStatus.idBind[0]];
-                energySrcBoundEnd[1] = (*occEnergyPtr)[bindStatus.idBind[1]];
-            } 
-            // ***** END <09-27-2021, SA> *****
 
             assert(stage != -1); // A stage should always be found
             double roll[3] = {}; // rng to be setup
@@ -188,8 +180,7 @@ class CalcProteinBind {
                 // or
                 // Unbound protein -> Unbound protein
                 roll[0] = rngPoolPtr->getU01(threadID);
-                //KMC_U(pData, srcPtrArr, dt, roll[0], bindStatusResult, occupancyEnergy);
-                KMC_U(pData, srcPtrArr, dt, roll[0], bindStatusResult);
+                KMC_U(pData, srcPtrArr, dt, roll[0], bindStatusResult, occupancyEnergy);
                 break;
             case 1:
                 // 1 head bound protein -> Unbound protein
@@ -200,14 +191,14 @@ class CalcProteinBind {
                 for (int i = 0; i < 3; ++i) {
                     roll[i] = rngPoolPtr->getU01(threadID);
                 }
-                KMC_S(pData, srcPtrArr, dt, KBT, roll, bindStatusResult, occupancyEnergy, energySrcBoundEnd);
+                KMC_S(pData, srcPtrArr, dt, KBT, roll, bindStatusResult, occupancyEnergy);
                 break;
             case 2:
                 // 2 head bound protein -> 1 head bound protein
                 // or
                 // 2 head bound protein -> 2 head bound protein
                 roll[0] = rngPoolPtr->getU01(threadID);
-                KMC_D(pData, srcPtrArr, dt, KBT, roll[0], bindStatusResult, energySrcBoundEnd);
+                KMC_D(pData, srcPtrArr, dt, KBT, roll[0], bindStatusResult);
                 break;
             default:
                 spdlog::critical(

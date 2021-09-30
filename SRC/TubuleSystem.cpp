@@ -676,14 +676,10 @@ std::unordered_map<int,double> TubuleSystem::calcOccupancyEnergyMap() {
         int idBound0 = protein.bind.idBind[0];
         int idBound1 = protein.bind.idBind[1];
 
-        //if (idBound0 != ID_UB) {
-            //occLength[ indexInTubuleGid[idBound0]] += protein.property.occupancy_size;
-        //}
-        //if (idBound1 != ID_UB) {
-            //occLength[ indexInTubuleGid[idBound1]] += protein.property.occupancy_size;
-        //}
-        if ((idBound0 != ID_UB) && (idBound1 != ID_UB)) {
+        if (idBound0 != ID_UB) {
             occLengthTimesEnergy[ indexInTubuleGid[idBound0]] += protein.property.Usteric*protein.property.occupancy_size;
+        }
+        if (idBound1 != ID_UB) {
             occLengthTimesEnergy[ indexInTubuleGid[idBound1]] += protein.property.Usteric*protein.property.occupancy_size;
         }
     }

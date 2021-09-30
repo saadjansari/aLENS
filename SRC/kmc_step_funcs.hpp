@@ -33,7 +33,8 @@
  */
 template <class Tubule>
 void KMC_U(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
-           double dt, double roll, ProteinBindStatus &pBind) {
+           double dt, double roll, ProteinBindStatus &pBind, 
+           const std::vector<double> &occupancyEnergy) {
     // Assert the heads are not attached
     assert(pData.getBindID(0) == ID_UB && pData.getBindID(1) == ID_UB);
 
@@ -59,6 +60,12 @@ void KMC_U(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
 
     std::vector<double> bindFactors0(Nsy + Nsph, pData.getBindingFactorUS(0));
     std::vector<double> bindFactors1(Nsy + Nsph, pData.getBindingFactorUS(1));
+
+    // SA: multiply occupancy energy binding factor
+    for (int t = 0; t < occupancyEnergy.size(); t++) {
+        bindFactors0[t] *= exp(-1*occupancyEnergy[t]);
+        bindFactors1[t] *= exp(-1*occupancyEnergy[t]);
+    }
 
     // Loop over object to bind to and calculate binding probabilities
     kmc_end0.CalcTotProbsUS(syPtrArr, sphPtrArr, bindFactors0);
@@ -115,8 +122,7 @@ void KMC_U(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
 template <class Tubule>
 void KMC_S(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
            double dt, double KBT, double rollVec[3], ProteinBindStatus &pBind, 
-           const std::vector<double> &occupancyEnergy, 
-           double occupancyEnergySrcBoundEnd[2]) {
+           const std::vector<double> &occupancyEnergy) {
     int Npj = ep_j.size();
     double roll = rollVec[0];
     // Find out which head is bound
@@ -139,7 +145,7 @@ void KMC_S(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
         bindFactors[i] =
             pData.getBindingFactorSD(1 - bound_end, ep_j[i]->direction);
         // *************** BEGIN <09-21-2021, SA> *************
-        bindFactors[i] *= exp(-occupancyEnergy[i]); // include boltz factor for occupancy energy
+        bindFactors[i] *= exp(-1*occupancyEnergy[i]); // include boltz factor for occupancy energy
         // *************** END <09-21-2021, SA> *************
     }
 
@@ -151,11 +157,7 @@ void KMC_S(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
     KMC<Tubule, Tubule> kmc_bind(pData.bind.posEndBind[bound_end], Nsy, Nsph,
                                  dt, pType->LUTablePtr);
 
-    // *************** BEGIN <09-27-2021, SA> *************
-    kmc_unbind.CalcProbSU( exp( occupancyEnergySrcBoundEnd[bound_end])*
-            pData.getUnbindingFactorSU(bound_end));
-    // *************** END <09-27-2021, SA> *************
-    //kmc_unbind.CalcProbSU(pData.getUnbindingFactorSU(bound_end));
+    kmc_unbind.CalcProbSU(pData.getUnbindingFactorSU(bound_end));
     kmc_bind.LUCalcTotProbsSD(syPtrArr, sphPtrArr, pData.getBindID(bound_end),
                               bindFactors);
     int activated_end = -1;
@@ -221,18 +223,11 @@ void KMC_S(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
  */
 template <class Tubule>
 void KMC_D(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
-           double dt, double KBT, double roll, ProteinBindStatus &pBind, 
-           double occupancyEnergySrcBoundEnd[2]) {
+           double dt, double KBT, double roll, ProteinBindStatus &pBind) {
     KMC<Tubule> kmc_UB0(pData.bind.posEndBind[0], dt);
     KMC<Tubule> kmc_UB1(pData.bind.posEndBind[1], dt);
-    // *************** BEGIN <09-27-2021, SA> *************
-    kmc_UB0.CalcProbDS( exp(occupancyEnergySrcBoundEnd[0])*
-            pData.getUnbindingFactorDS(0, KBT));
-    kmc_UB1.CalcProbDS( exp(occupancyEnergySrcBoundEnd[1])*
-            pData.getUnbindingFactorDS(1, KBT));
-    // *************** END <09-27-2021, SA> *************
-    //kmc_UB0.CalcProbDS(pData.getUnbindingFactorDS(0, KBT));
-    //kmc_UB1.CalcProbDS(pData.getUnbindingFactorDS(1, KBT));
+    kmc_UB0.CalcProbDS(pData.getUnbindingFactorDS(0, KBT));
+    kmc_UB1.CalcProbDS(pData.getUnbindingFactorDS(1, KBT));
     // double totProb = kmc_UB0.getTotProb() + kmc_UB1.getTotProb();
     int activated_end =
         choose_kmc_double(kmc_UB0.getTotProb(), kmc_UB1.getTotProb(), roll);
