@@ -101,6 +101,9 @@ void KMC_U(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
 #ifndef NDEBUG
     printf("U->S Binding\n");
 #endif
+    //if (obj.gid == 30){
+        //std::cout << "gid 30:\n" << "open site fraction = " << openSiteFraction[rj] << std::endl;  
+    //}
 
     pBind.setBind(activated_end, obj.gid, obj.globalIndex, obj.direction, rPos,
                   bindPos, obj.length, obj.rank);
@@ -205,6 +208,15 @@ void KMC_S(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
         pBind.setBind(activated_end, obj.gid, obj.globalIndex, obj.direction,
                       rPos, bindPos, obj.length, obj.rank);
         assert(pBind.idBind[0] != ID_UB && pBind.idBind[1] != ID_UB);
+
+        /*
+         *if (openSiteFraction[rj]<=0.01){
+         *    std::cout << "Frick:\n" << "open site fraction = " << openSiteFraction[rj] << std::endl;  
+         *}
+         */
+        //if (obj.gid == 30){
+            //std::cout << "gid 30:\n" << "open site fraction = " << openSiteFraction[rj] << std::endl;  
+        //}
     }
     return;
 }

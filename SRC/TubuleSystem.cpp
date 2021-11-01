@@ -670,7 +670,8 @@ std::unordered_map<int,double> TubuleSystem::calcAvailableSiteFraction() {
 
     // loop over proteins and count length of binding sites occupied times energy for each tubule
     std::vector<double> occLength(nTubuleLocal, 0);
-#pragma omp parallel for
+    std::vector<double> nBound(nTubuleLocal, 0);
+//#pragma omp parallel for
     for (int t = 0; t < nProteinLocal; t++) {
         auto &protein = proteinContainer[t];
         int idBound0 = protein.bind.idBind[0];
@@ -678,10 +679,18 @@ std::unordered_map<int,double> TubuleSystem::calcAvailableSiteFraction() {
 
         if (idBound0 != ID_UB) {
             occLength[ indexInTubuleGid[idBound0]] += protein.property.occupancy_size / tubuleContainer[ indexInTubuleGid[idBound0]].length;
+            nBound[ indexInTubuleGid[idBound0]] += 1;
         }
         if (idBound1 != ID_UB) {
             occLength[ indexInTubuleGid[idBound1]] += protein.property.occupancy_size / tubuleContainer[ indexInTubuleGid[idBound1]].length;
+            nBound[ indexInTubuleGid[idBound1]] += 1;
         }
+        //if (indexInTubuleGid[idBound0] == 30) {
+            //std::cout << "protein " << protein.gid << " head0 is bound to filament 30" << std::endl;
+        //}
+        //if (indexInTubuleGid[idBound1] == 30) {
+            //std::cout << "protein " << protein.gid << " head1 is bound to filament 30" << std::endl;
+        //}
     }
     // Print occLength
 /*
@@ -696,13 +705,20 @@ std::unordered_map<int,double> TubuleSystem::calcAvailableSiteFraction() {
     //std::vector<double> openFrac(nTubuleLocal, 0);
     openLength.reserve(1+nTubuleLocal); 
     for (int t = 0; t < nTubuleLocal; t++) {
-        if (occLength[t] > 2.0) {
-            std::cout << "Filament occupation is double the max" << std::endl;
-        }
         openLength[ tubuleGid[t] ] = 1.-occLength[t];
         if (openLength[tubuleGid[t]] < 0.) {
             openLength[ tubuleGid[t] ] = 0.;
         }
+        //if (occLength[t] > 1.0) {
+            //if (tubuleGid[t] == 30) {
+                //std::cout << "Frick: " << std::endl;
+                //std::cout << "  GID = " << tubuleGid[t] << std::endl;
+                //std::cout << "  Length = " << tubuleContainer[t].length << std::endl;
+                //std::cout << "  Occupied Fraction = " << occLength[t] << std::endl;
+                //std::cout << "  Open Fraction = " << openLength[t] << std::endl;
+                //std::cout << "  Num Bound = " << nBound[t] << std::endl;
+            //}
+        //}
         //openFrac[t] = openLength[ tubuleGid[t] ];
     }
     // Print openFrac

@@ -102,6 +102,9 @@ class CalcProteinBind {
         }
         for (int t = 0; t < nSrcBind; t++) {
             openSiteFraction[t]= (*openFractionPtr)[ srcPtrArr[t]->gid ];
+            //if (srcPtrArr[t]->gid == 1172) {
+                //std::cout << "gid 1172 <-> " << openSiteFraction[t] << std::endl;
+            //}
         }
         // ************* END <09-21-21, SA> **************
 
