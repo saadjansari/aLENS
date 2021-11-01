@@ -31,7 +31,7 @@ class CalcProteinBind {
     double KBT;                           ///< KBT for protein KMC calculation
     std::shared_ptr<TRngPool> rngPoolPtr; ///< rng generator
     // ******** BEGIN <09-27-2021, SA> *******
-    std::unordered_map<int, double>* occEnergyPtr = NULL; //< ptr to occupancy energy
+    std::unordered_map<int, double>* openFractionPtr = NULL; //< ptr to occupancy energy
     // ******** END <09-27-2021, SA> *******
 
   public:
@@ -59,11 +59,11 @@ class CalcProteinBind {
      */
     CalcProteinBind(double dt_, double KBT_,
                     std::shared_ptr<TRngPool> &rngPoolPtr_,
-                    std::unordered_map<int,double>* occEnergyPtr_) {
+                    std::unordered_map<int,double>* openFractionPtr_) {
         dt = dt_;
         KBT = KBT_;
         rngPoolPtr = rngPoolPtr_;
-        occEnergyPtr = occEnergyPtr_;
+        openFractionPtr = openFractionPtr_;
     }
     // ******** END <09-27-2021, SA> *******
 
@@ -91,17 +91,17 @@ class CalcProteinBind {
 
         // ************* BEGIN <09-21-21, SA> **************
         int nSrcBind = srcPtrArr.size(); // Number of sources that can bind to targets
-        std::vector<double> occupancyEnergy(nSrcBind, 0.0); // init energy to 0 (saturation off)
-        if (occEnergyPtr == NULL) {
-            std::cerr << " *** RuntimeError: Saturation is true but occupancy energy ptr is NULL***"
+        std::vector<double> openSiteFraction(nSrcBind, 1.0); // init to 1 (all sites available) 
+        if (openFractionPtr == NULL) {
+            std::cerr << " *** RuntimeError: Saturation is true but open fraction ptr is NULL***"
                       << std::endl;
-            throw "RuntimeError: OccEnergyPtr is required but is NULL";
+            throw "RuntimeError: openFractionPtr is required but is NULL";
         }
         if (nSrcBind == 0) {
             std::cerr << " Note: nSrcBind = 0. There may be issues!" << std::endl;
         }
         for (int t = 0; t < nSrcBind; t++) {
-            occupancyEnergy[t]= (*occEnergyPtr)[ srcPtrArr[t]->gid ];
+            openSiteFraction[t]= (*openFractionPtr)[ srcPtrArr[t]->gid ];
         }
         // ************* END <09-21-21, SA> **************
 
@@ -180,7 +180,7 @@ class CalcProteinBind {
                 // or
                 // Unbound protein -> Unbound protein
                 roll[0] = rngPoolPtr->getU01(threadID);
-                KMC_U(pData, srcPtrArr, dt, roll[0], bindStatusResult, occupancyEnergy);
+                KMC_U(pData, srcPtrArr, dt, roll[0], bindStatusResult, openSiteFraction);
                 break;
             case 1:
                 // 1 head bound protein -> Unbound protein
@@ -191,7 +191,7 @@ class CalcProteinBind {
                 for (int i = 0; i < 3; ++i) {
                     roll[i] = rngPoolPtr->getU01(threadID);
                 }
-                KMC_S(pData, srcPtrArr, dt, KBT, roll, bindStatusResult, occupancyEnergy);
+                KMC_S(pData, srcPtrArr, dt, KBT, roll, bindStatusResult, openSiteFraction);
                 break;
             case 2:
                 // 2 head bound protein -> 1 head bound protein

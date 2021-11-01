@@ -237,8 +237,8 @@ void TubuleSystem::calcBindInteraction() {
     spdlog::debug("mixTreeUpdated");
     // bindInteraction.dumpSystem();
     // ********** BEGIN <09-27-2021, SA> **********
-    std::unordered_map<int,double> occEnergyMap = calcOccupancyEnergyMap();
-    std::unordered_map<int,double>* ptr2Map = &occEnergyMap;
+    std::unordered_map<int,double> openFractionMap = calcAvailableSiteFraction();
+    std::unordered_map<int,double>* ptr2Map = &openFractionMap;
     CalcProteinBind interactionFtr(rodSystem.runConfig.dt, proteinConfig.KBT,
                                    rngPoolPtr, ptr2Map);
     // ********** END <09-27-2021, SA> **********
@@ -651,7 +651,7 @@ void TubuleSystem::setLookupTablePtr() {
 }
 
 // ************* BEGIN <09-22-2021, SA> ***********
-std::unordered_map<int,double> TubuleSystem::calcOccupancyEnergyMap() {
+std::unordered_map<int,double> TubuleSystem::calcAvailableSiteFraction() {
     const int nProteinLocal = proteinContainer.getNumberOfParticleLocal();
     auto &tubuleContainer = rodSystem.getContainer();
     const int nTubuleLocal = tubuleContainer.getNumberOfParticleLocal();
@@ -669,7 +669,7 @@ std::unordered_map<int,double> TubuleSystem::calcOccupancyEnergyMap() {
     }
 
     // loop over proteins and count length of binding sites occupied times energy for each tubule
-    std::vector<double> occLengthTimesEnergy(nTubuleLocal, 0);
+    std::vector<double> occLength(nTubuleLocal, 0);
 #pragma omp parallel for
     for (int t = 0; t < nProteinLocal; t++) {
         auto &protein = proteinContainer[t];
@@ -677,21 +677,42 @@ std::unordered_map<int,double> TubuleSystem::calcOccupancyEnergyMap() {
         int idBound1 = protein.bind.idBind[1];
 
         if (idBound0 != ID_UB) {
-            occLengthTimesEnergy[ indexInTubuleGid[idBound0]] += protein.property.Usteric*protein.property.occupancy_size;
+            occLength[ indexInTubuleGid[idBound0]] += protein.property.occupancy_size / tubuleContainer[ indexInTubuleGid[idBound0]].length;
         }
         if (idBound1 != ID_UB) {
-            occLengthTimesEnergy[ indexInTubuleGid[idBound1]] += protein.property.Usteric*protein.property.occupancy_size;
+            occLength[ indexInTubuleGid[idBound1]] += protein.property.occupancy_size / tubuleContainer[ indexInTubuleGid[idBound1]].length;
         }
     }
-
-    // Create map (key: tubule gid, value occupancy_energy)
-    std::unordered_map<int,double> occEnergy;
-    occEnergy.reserve(1+nTubuleLocal); 
+    // Print occLength
+/*
+ *    std::cout << "Occupied Length = [";
+ *    for (auto i: occLength)
+ *        std::cout << i << ' ';
+ *    std::cout << "]" << std::endl;
+ *
+ */
+    // Create map (key: tubule gid, value length_occupancy_)
+    std::unordered_map<int,double> openLength;
+    //std::vector<double> openFrac(nTubuleLocal, 0);
+    openLength.reserve(1+nTubuleLocal); 
     for (int t = 0; t < nTubuleLocal; t++) {
-        occEnergy[ tubuleGid[t] ] = occLengthTimesEnergy[t] / tubuleContainer[t].length;
+        if (occLength[t] > 2.0) {
+            std::cout << "Filament occupation is double the max" << std::endl;
+        }
+        openLength[ tubuleGid[t] ] = 1.-occLength[t];
+        if (openLength[tubuleGid[t]] < 0.) {
+            openLength[ tubuleGid[t] ] = 0.;
+        }
+        //openFrac[t] = openLength[ tubuleGid[t] ];
     }
-    occEnergy[ ID_UB] = 0.; //zero energy for any unbound ends
-    return occEnergy;
+    // Print openFrac
+    /*
+     *std::cout << "Open Frac = [";
+     *for (auto i: openFrac)
+     *    std::cout << i << ' ';
+     *std::cout << "]" << std::endl;
+     */
+    return openLength;
 }
 // ************* END <09-22-2021, SA> ***********
 

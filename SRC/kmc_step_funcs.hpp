@@ -34,7 +34,7 @@
 template <class Tubule>
 void KMC_U(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
            double dt, double roll, ProteinBindStatus &pBind, 
-           const std::vector<double> &occupancyEnergy) {
+           const std::vector<double> &openSiteFraction) {
     // Assert the heads are not attached
     assert(pData.getBindID(0) == ID_UB && pData.getBindID(1) == ID_UB);
 
@@ -61,10 +61,10 @@ void KMC_U(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
     std::vector<double> bindFactors0(Nsy + Nsph, pData.getBindingFactorUS(0));
     std::vector<double> bindFactors1(Nsy + Nsph, pData.getBindingFactorUS(1));
 
-    // SA: multiply occupancy energy binding factor
-    for (int t = 0; t < occupancyEnergy.size(); t++) {
-        bindFactors0[t] *= exp(-1*occupancyEnergy[t]);
-        bindFactors1[t] *= exp(-1*occupancyEnergy[t]);
+    // SA: multiply open site fraction
+    for (int t = 0; t < openSiteFraction.size(); t++) {
+        bindFactors0[t] *= openSiteFraction[t];
+        bindFactors1[t] *= openSiteFraction[t];
     }
 
     // Loop over object to bind to and calculate binding probabilities
@@ -122,7 +122,7 @@ void KMC_U(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
 template <class Tubule>
 void KMC_S(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
            double dt, double KBT, double rollVec[3], ProteinBindStatus &pBind, 
-           const std::vector<double> &occupancyEnergy) {
+           const std::vector<double> &openSiteFraction) {
     int Npj = ep_j.size();
     double roll = rollVec[0];
     // Find out which head is bound
@@ -145,7 +145,7 @@ void KMC_S(const ProteinData &pData, const std::vector<const Tubule *> &ep_j,
         bindFactors[i] =
             pData.getBindingFactorSD(1 - bound_end, ep_j[i]->direction);
         // *************** BEGIN <09-21-2021, SA> *************
-        bindFactors[i] *= exp(-1*occupancyEnergy[i]); // include boltz factor for occupancy energy
+        bindFactors[i] *= openSiteFraction[i]; 
         // *************** END <09-21-2021, SA> *************
     }
 

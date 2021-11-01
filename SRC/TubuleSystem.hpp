@@ -154,10 +154,10 @@ class TubuleSystem {
 
     // ************* BEGIN <09-22-2021, SA> ***********
     /**
-     * @brief calc occupancy energy for bound proteins for every tubule
+     * @brief calc available site fraction for bound proteins for every tubule
      *
      */
-    std::unordered_map<int,double> calcOccupancyEnergyMap();
+    std::unordered_map<int,double> calcAvailableSiteFraction();
     // ************* END <09-22-2021, SA> ***********
 
     /**
