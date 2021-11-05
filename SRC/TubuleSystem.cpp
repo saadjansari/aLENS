@@ -670,7 +670,6 @@ std::unordered_map<int,double> TubuleSystem::calcOccupancyEnergyMap() {
 
     // loop over proteins and count length of binding sites occupied times energy for each tubule
     std::vector<double> occLengthTimesEnergy(nTubuleLocal, 0);
-#pragma omp parallel for
     for (int t = 0; t < nProteinLocal; t++) {
         auto &protein = proteinContainer[t];
         int idBound0 = protein.bind.idBind[0];
